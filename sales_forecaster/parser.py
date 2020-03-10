@@ -13,16 +13,6 @@ def parse_liquidation_limits(df):
     return df
 
 
-def parse_liquidation_limits_std(df):
-    df = df.astype({'Liquidation Limit': 'float'})
-    df['Normal Price'] = df['Standard Price']
-    df = df.astype({'Normal Price': 'float'})
-    df = df.astype({'Year': 'int'})
-
-    df['Price Limit'] = df['Normal Price'] * (1. - df['Liquidation Limit'])
-    return df
-
-
 def parse_orders(df):
     df = df.loc[:, ['Order Date', 'Market Place', 'ASIN', 'Price', 'Qty', 'Refunded', 'Sales Channel', 'Customer Pays']]
     df.loc[:, ['Price', 'Customer Pays']] = df.loc[:, ['Price', 'Customer Pays']] \
