@@ -9,7 +9,17 @@ def parse_liquidation_limits(df):
     df = df.astype({'Normal Price': 'float'})
     df = df.astype({'Year': 'int'})
 
-    df['Price Limit'] = df['Normal Price'] * (1 - df['Liquidation Limit'])
+    df['Price Limit'] = df['Normal Price'] * (1. - df['Liquidation Limit'])
+    return df
+
+
+def parse_liquidation_limits_std(df):
+    df = df.astype({'Liquidation Limit': 'float'})
+    df['Normal Price'] = df['Standard Price']
+    df = df.astype({'Normal Price': 'float'})
+    df = df.astype({'Year': 'int'})
+
+    df['Price Limit'] = df['Normal Price'] * (1. - df['Liquidation Limit'])
     return df
 
 
@@ -20,9 +30,9 @@ def parse_orders(df):
         .replace('[\£,]', '', regex=True) \
         .replace('', np.nan)
 
-    nan_price = df[df['Price'].isnull()]
-    if nan_price.shape[0] > 0:
-        print('The price is not available for these orders:\n', nan_price)
+    # nan_price = df[df['Price'].isnull()]
+    # if nan_price.shape[0] > 0:
+    #     print('The price is not available for these orders:\n', nan_price)
 
     df.dropna(subset=['Price', 'Customer Pays'], inplace=True)
     df.loc[:, ['Qty', 'Price', 'Customer Pays']] = df.loc[:, ['Qty', 'Price', 'Customer Pays']].astype(float)
@@ -32,13 +42,18 @@ def parse_orders(df):
     df.loc[:, 'Day'] = pd.DatetimeIndex(df['Order Date']).day.astype(int)
     df.drop(['Order Date'], axis=1, inplace=True)
 
-    df['Price/Qty'] = df['Price'] / df['Qty']
+    # TODO: i change logic here
+    # df['Price/Qty'] = df['Price'] / df['Qty']
+    df['Price/Qty'] = df['Customer Pays'] / df['Qty']
 
     nan_unit_price = df[df['Price/Qty'].isnull()]
     if nan_unit_price.shape[0] > 0:
         print('Price/Qty is not available for these orders:\n', nan_unit_price)
 
     df.dropna(subset=['Price/Qty'], inplace=True)
+
+    df = df[df['Refunded'] == 0]
+    df = df[df['Customer Pays'] >= 0.0]
 
     return df
 
@@ -66,7 +81,7 @@ def parse_historical_table(df):
 def read_sales_xlsx(filenames):
     df = pd.DataFrame(columns=['Year', 'Month', 'Day', 'Market Place', 'ASIN', 'PPC Orders'])
     for filename in filenames:
-        sales = pd.read_excel(filename)
+        sales = pd.read_excel(filename, sheetname=None)
         sales.drop(sales.columns[0], axis=1, inplace=True)
 
         try:
@@ -119,6 +134,6 @@ def read_orders_csv(filenames):
     for filename in filenames:
         orders = pd.read_csv(filename, encoding="ISO-8859-1", low_memory=False)
         orders = parse_orders(orders)
-        df = df.append(orders, ignore_index=True, sort=True)
+        df = df.append(orders, ignore_index=True)
 
     return df
