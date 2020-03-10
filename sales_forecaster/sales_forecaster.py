@@ -10,6 +10,9 @@ import parser
 import gservice
 
 
+PATH_TO_DATA= '../data/'
+
+
 def get_liquidation_orders(orders_df, liquidataion_limit_df):
     try:
         orders_with_liquidation_limit = pd.merge(orders_df, liquidataion_limit_df,
@@ -249,11 +252,10 @@ def main(orders_regex, out_of_stock_regex, sales_regex, input_regex):
 
     gservice.authenticate_google_sheets()
 
-    order_files = glob.glob(orders_regex)
-    stock_out_files = glob.glob(out_of_stock_regex)
-    sales_files = glob.glob(sales_regex)
-
-    input = glob.glob(input_regex)
+    order_files = glob.glob(PATH_TO_DATA + orders_regex)
+    stock_out_files = glob.glob(PATH_TO_DATA + out_of_stock_regex)
+    sales_files = glob.glob(PATH_TO_DATA + sales_regex)
+    input = glob.glob(PATH_TO_DATA + input_regex)
 
     cin7_product = pd.read_excel(input[0], sheet_name='Input-Cin7-Product-Map') if len(input) > 0 else \
         gservice.get_data_from_spreadsheet(os.getenv('INPUT_SPREADSHEET_ID'), 'Input-Cin7-Product-Map')
