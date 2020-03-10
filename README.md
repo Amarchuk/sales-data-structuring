@@ -1,3 +1,8 @@
+
+**-README OUTDATED, WIP-**
+
+---------------------------
+
 # Sales data restructuring
 
 Clean the raw data to a visualizable format.
