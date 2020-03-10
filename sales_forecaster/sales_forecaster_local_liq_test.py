@@ -222,7 +222,6 @@ def summarize_by_sales_type(df, cin7_product_map, sales_type):
         summarized['Date'] = pd.to_datetime(summarized['Year'].astype(str).apply(lambda l: l[:-2]) + ' ' + summarized['Month'],
                                             format='%Y %B').dt.strftime('%m/%d/%Y')
         summarized['Sales Type'] = sales_type
-        # TODO: is this line correct?
         summarized['Sales Channel'] = 'Amazon' if sales_type != 'Shopify' and sales_type != 'Wholesale' else 'Non-Amazon'
         return summarized
     except KeyError:
@@ -328,11 +327,6 @@ def main(orders_regex, out_of_stock_regex, sales_regex, input_regex):
 
     with pd.ExcelWriter('liquidations_by_month.xlsx') as writer:
         liq_summary2.to_excel(writer, sheet_name='Calc-Historical-Liquidation-Month')
-
-
-#
-
-
 
 
 if __name__ == '__main__':
