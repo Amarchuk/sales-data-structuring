@@ -20,9 +20,9 @@ def parse_orders(df):
         .replace('[\£,]', '', regex=True) \
         .replace('', np.nan)
 
-    # nan_price = df[df['Price'].isnull()]
-    # if nan_price.shape[0] > 0:
-    #     print('The price is not available for these orders:\n', nan_price)
+    nan_price = df[df['Price'].isnull()]
+    if nan_price.shape[0] > 0:
+        print('The price is not available for these orders:\n', nan_price)
 
     df.dropna(subset=['Price', 'Customer Pays'], inplace=True)
     df.loc[:, ['Qty', 'Price', 'Customer Pays']] = df.loc[:, ['Qty', 'Price', 'Customer Pays']].astype(float)
