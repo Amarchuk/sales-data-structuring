@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import traceback
 
 import parser
 import gservice
@@ -15,6 +16,9 @@ PATH_TO_DATA= '../data/'
 
 def get_liquidation_orders(orders_df, liquidataion_limit_df):
     try:
+        # TODO: is this line correct? I think so
+        orders_df = orders_df[orders_df['Refunded'] == 0]
+
         orders_with_liquidation_limit = pd.merge(orders_df, liquidataion_limit_df,
                                                  how='left',
                                                  on=['Cin7', 'Year', 'Month'])
@@ -63,7 +67,7 @@ def format_calculations_for_output(df, cin7_product, out_of_stock, sales_channel
     if (sales_type == 'PPC') | (sales_type == 'Organic'):
         output['Revenue'] = output['Qty'] * output['Avg Sale Price']
         output['Date'] = pd.to_datetime(
-            output['Year'].astype(str) + ' ' + output['Month'].astype(str),
+            output['Year'].astype(str).apply(lambda l: l.replace('.0', '')) + ' ' + output['Month'].astype(str),
             format='%Y %B').dt.strftime('%m/%d/%Y')
         output = output[['Brand', 'Country', 'Sales Channel', 'Product Group', 'Cin7',
                          'Sales Type', 'Date', 'Year', 'Month', 'Qty',
@@ -71,7 +75,7 @@ def format_calculations_for_output(df, cin7_product, out_of_stock, sales_channel
     else:
         output['Revenue'] = output['Qty'] * output['Price/Qty']
         output['Date'] = pd.to_datetime(
-            output['Year'].astype(str) + ' ' + output['Month'] + ' ' + output['Day'].astype(str),
+            output['Year'].astype(str).apply(lambda l: l[:-2]) + ' ' + output['Month'] + ' ' + output['Day'].astype(str).apply(lambda l: l[:-2]),
             format='%Y %B %d').dt.strftime('%m/%d/%Y')
         output = output[['Brand', 'Country', 'Sales Channel', 'Product Group', 'Cin7',
                          'Sales Type', 'Date', 'Year', 'Month', 'Day', 'Qty',
@@ -112,7 +116,7 @@ def match_cin7_product(df, cin7_product_map):
         matched = pd.merge(df, cin7_product_map,
                            how='left',
                            on='Cin7')
-        columns_to_unique = matched.columns.to_list()
+        columns_to_unique = list(matched.columns)
         columns_to_unique.remove('Brand')
         columns_to_unique.remove('Product Group')
         matched = matched.drop_duplicates(subset=columns_to_unique)
@@ -187,7 +191,7 @@ def reallocate_ppc_qty(ppc_organic, sales_ppc, portion):
                                on=['Market Place', 'Year', 'Month', 'Brand', 'Product Group'])
 
         monthly_ppc_organic_sum['Date'] = monthly_ppc_organic_sum\
-            .apply(lambda row: datetime.strptime(str(row['Year']) + row['Month'], '%Y%B'), axis=1)
+            .apply(lambda row: datetime.strptime(str(row['Year'])[:-2] + row['Month'], '%Y%B'), axis=1)
         monthly_ppc_organic_sum = monthly_ppc_organic_sum.sort_values(
             ['Cin7', 'Date'], ascending=[True, True]).reset_index(drop=True)
         monthly_ppc_organic_sum['Portion'] = monthly_ppc_organic_sum.groupby(
@@ -222,7 +226,7 @@ def summarize_by_sales_type(df, cin7_product_map, sales_type):
         summarized = pd.concat([qty_sum, price_avg], axis=1).reset_index() \
             .rename(columns={'Qty': 'Sales QTY', 'Price/Qty': 'Avg Sale Price'})
         summarized['Revenue'] = summarized['Sales QTY'] * summarized['Avg Sale Price']
-        summarized['Date'] = pd.to_datetime(summarized['Year'].astype(str) + ' ' + summarized['Month'],
+        summarized['Date'] = pd.to_datetime(summarized['Year'].astype(str).apply(lambda l: l.replace('.0', '')) + ' ' + summarized['Month'],
                                             format='%Y %B').dt.strftime('%m/%d/%Y')
         summarized['Sales Type'] = sales_type
         summarized['Sales Channel'] = 'Amazon' if sales_type != 'Shopify' and sales_type != 'Wholesale' else 'Non-Amazon'
@@ -237,7 +241,7 @@ def summarize_reallocated_sales_type(df, cin7_product_map, sales_type):
         summarized = match_cin7_product(df, cin7_product_map).rename(columns={'Qty': 'Sales QTY'})
 
         summarized['Revenue'] = summarized['Sales QTY'] * summarized['Avg Sale Price']
-        summarized['Date'] = pd.to_datetime(summarized['Year'].astype(str) + ' ' + summarized['Month'],
+        summarized['Date'] = pd.to_datetime(summarized['Year'].astype(str).apply(lambda l: l.replace('.0', '')) + ' ' + summarized['Month'],
                                             format='%Y %B').dt.strftime('%m/%d/%Y')
         summarized['Sales Type'] = sales_type
         summarized['Sales Channel'] = 'Amazon'
@@ -248,34 +252,33 @@ def summarize_reallocated_sales_type(df, cin7_product_map, sales_type):
 
 
 def main(orders_regex, out_of_stock_regex, sales_regex, input_regex):
-    load_dotenv()
-
-    gservice.authenticate_google_sheets()
+    # load_dotenv()
+    # gservice.authenticate_google_sheets()
 
     order_files = glob.glob(PATH_TO_DATA + orders_regex)
     stock_out_files = glob.glob(PATH_TO_DATA + out_of_stock_regex)
     sales_files = glob.glob(PATH_TO_DATA + sales_regex)
     input = glob.glob(PATH_TO_DATA + input_regex)
 
-    cin7_product = pd.read_excel(input[0], sheet_name='Input-Cin7-Product-Map') if len(input) > 0 else \
+    cin7_product = pd.read_excel(input[0], sheetname='Input-Cin7-Product-Map') if len(input) > 0 else \
         gservice.get_data_from_spreadsheet(os.getenv('INPUT_SPREADSHEET_ID'), 'Input-Cin7-Product-Map')
-    asin_cin7 = pd.read_excel(input[0], sheet_name='Input-ASIN-Cin7-Map') if len(input) > 0 else \
+    asin_cin7 = pd.read_excel(input[0], sheetname='Input-ASIN-Cin7-Map') if len(input) > 0 else \
         gservice.get_data_from_spreadsheet(os.getenv('INPUT_SPREADSHEET_ID'), 'Input-ASIN-Cin7-Map')
 
-    liquidation_limit = parser.parse_liquidation_limits(
-        pd.read_excel(input[0], sheet_name='Input-Liquidation-Limits') if len(input) > 0 else
+    liq_limits = pd.read_excel(input[0], sheetname='Input-Liquidation-Limits')
+    liquidation_limit = parser.parse_liquidation_limits(liq_limits if len(input) > 0 else
         gservice.get_data_from_spreadsheet(os.getenv('INPUT_SPREADSHEET_ID'), 'Input-Liquidation-Limits')
     )
     promotions = parser.parse_historical_table(
-        pd.read_excel(input[0], sheet_name='Input-Historical-Promotions') if len(input) > 0 else
+        pd.read_excel(input[0], sheetname='Input-Historical-Promotions') if len(input) > 0 else
         gservice.get_data_from_spreadsheet(os.getenv('INPUT_SPREADSHEET_ID'), 'Input-Historical-Promotions')
     )
     shopify = parser.parse_historical_table(
-        pd.read_excel(input[0], sheet_name='Input-Historical-Shopify') if len(input) > 0 else
+        pd.read_excel(input[0], sheetname='Input-Historical-Shopify') if len(input) > 0 else
         gservice.get_data_from_spreadsheet(os.getenv('INPUT_SPREADSHEET_ID'), 'Input-Historical-Shopify')
     )
     wholesale = parser.parse_historical_table(
-        pd.read_excel(input[0], sheet_name='Input-Historical-Wholesale') if len(input) > 0 else
+        pd.read_excel(input[0], sheetname='Input-Historical-Wholesale') if len(input) > 0 else
         gservice.get_data_from_spreadsheet(os.getenv('INPUT_SPREADSHEET_ID'), 'Input-Historical-Wholesale')
     )
 
@@ -290,7 +293,7 @@ def main(orders_regex, out_of_stock_regex, sales_regex, input_regex):
     orders = parser.read_orders_csv(order_files)
     orders = match_asin_cin7(orders, asin_cin7, 'orders')
     orders = orders[['Cin7', 'Year', 'Month', 'Day', 'Market Place', 'Sales Channel',
-                     'Qty', 'Price', 'Price/Qty']]
+                     'Qty', 'Price', 'Price/Qty', 'Refunded']]
     orders_amazon = orders[orders['Sales Channel'] != 'Non-Amazon']
     orders_non_amazon = orders[orders['Sales Channel'] == 'Non-Amazon']
 
@@ -358,7 +361,7 @@ def main(orders_regex, out_of_stock_regex, sales_regex, input_regex):
     sum_wholesale = summarize_by_sales_type(wholesale, cin7_product, 'Wholesale')
 
     summarized_output_file = pd.concat([sum_liq, sum_prom, sum_non, sum_ppc, sum_org,
-                                        sum_shopify, sum_wholesale], ignore_index=True, sort=True)
+                                        sum_shopify, sum_wholesale], ignore_index=True)
 
     summarized_output_file = add_out_of_stock_days(summarized_output_file, out_of_stock)
     summarized_output_file = summarized_output_file.rename(columns={'Market Place': 'Country'})
@@ -384,7 +387,7 @@ def main(orders_regex, out_of_stock_regex, sales_regex, input_regex):
     calc_historical_total_sales_formatted = pd.concat(
         [calc_historical_amazon_formatted, calc_historical_non_amazon_formatted], ignore_index=True)
 
-    with pd.ExcelWriter('calculations.xlsx') as writer:
+    with pd.ExcelWriter('python-test-calculations.xlsx') as writer:
         calc_historical_total_sales_formatted.to_excel(writer, sheet_name='Calc-Historical-Total')
         calc_historical_amazon_formatted.to_excel(writer, sheet_name='Calc-Historical-Amazon')
         calc_historical_liquidation_formatted.to_excel(writer, sheet_name='Calc-Historical-Liquidation')
@@ -395,51 +398,56 @@ def main(orders_regex, out_of_stock_regex, sales_regex, input_regex):
         calc_historical_organic_reallocated_formatted.to_excel(writer, sheet_name='Calc-Historical-Org.Reallocated')
         summarized_output_file.to_excel(writer, sheet_name='Output File')
 
-    gservice.upload_data_to_sheet(
-        gservice.format_for_google_sheet_upload(calc_historical_total_sales_formatted),
-        os.getenv('CALCULATIONS_SPREADSHEET_ID'),
-        'Calc-Historical-Total'
-    )
-    gservice.upload_data_to_sheet(
-        gservice.format_for_google_sheet_upload(calc_historical_amazon_formatted),
-        os.getenv('CALCULATIONS_SPREADSHEET_ID'),
-        'Calc-Historical-Amazon'
-    )
-    gservice.upload_data_to_sheet(
-        gservice.format_for_google_sheet_upload(calc_historical_liquidation_formatted),
-        os.getenv('CALCULATIONS_SPREADSHEET_ID'),
-        'Calc-Historical-Liquidation'
-    )
-    gservice.upload_data_to_sheet(
-        gservice.format_for_google_sheet_upload(calc_historical_non_amazon_formatted),
-        os.getenv('CALCULATIONS_SPREADSHEET_ID'),
-        'Calc-Historical-Non-Amazon'
-    )
-    gservice.upload_data_to_sheet(
-        gservice.format_for_google_sheet_upload(sales_ppc),
-        os.getenv('CALCULATIONS_SPREADSHEET_ID'),
-        'Calc-SUM-PPC-Orders'
-    )
-    gservice.upload_data_to_sheet(
-        gservice.format_for_google_sheet_upload(match_cin7_product(calc_orders_portion, cin7_product)),
-        os.getenv('CALCULATIONS_SPREADSHEET_ID'),
-        'Calc-Orders-portion'
-    )
-    gservice.upload_data_to_sheet(
-        gservice.format_for_google_sheet_upload(calc_historical_ppc_reallocated_formatted),
-        os.getenv('CALCULATIONS_SPREADSHEET_ID'),
-        'Calc-Historical-PPC.Reallocated'
-    )
-    gservice.upload_data_to_sheet(
-        gservice.format_for_google_sheet_upload(calc_historical_organic_reallocated_formatted),
-        os.getenv('CALCULATIONS_SPREADSHEET_ID'),
-        'Calc-Historical-Organic'
-    )
-    gservice.upload_data_to_sheet(
-        gservice.format_for_google_sheet_upload(summarized_output_file),
-        os.getenv('CALCULATIONS_SPREADSHEET_ID'),
-        'Output File'
-    )
+
+    try:
+        gservice.upload_data_to_sheet(
+            gservice.format_for_google_sheet_upload(calc_historical_total_sales_formatted),
+            os.getenv('CALCULATIONS_SPREADSHEET_ID'),
+            'Calc-Historical-Total'
+        )
+        gservice.upload_data_to_sheet(
+            gservice.format_for_google_sheet_upload(calc_historical_amazon_formatted),
+            os.getenv('CALCULATIONS_SPREADSHEET_ID'),
+            'Calc-Historical-Amazon'
+        )
+        gservice.upload_data_to_sheet(
+            gservice.format_for_google_sheet_upload(calc_historical_liquidation_formatted),
+            os.getenv('CALCULATIONS_SPREADSHEET_ID'),
+            'Calc-Historical-Liquidation'
+        )
+        gservice.upload_data_to_sheet(
+            gservice.format_for_google_sheet_upload(calc_historical_non_amazon_formatted),
+            os.getenv('CALCULATIONS_SPREADSHEET_ID'),
+            'Calc-Historical-Non-Amazon'
+        )
+        gservice.upload_data_to_sheet(
+            gservice.format_for_google_sheet_upload(sales_ppc),
+            os.getenv('CALCULATIONS_SPREADSHEET_ID'),
+            'Calc-SUM-PPC-Orders'
+        )
+        gservice.upload_data_to_sheet(
+            gservice.format_for_google_sheet_upload(match_cin7_product(calc_orders_portion, cin7_product)),
+            os.getenv('CALCULATIONS_SPREADSHEET_ID'),
+            'Calc-Orders-portion'
+        )
+        gservice.upload_data_to_sheet(
+            gservice.format_for_google_sheet_upload(calc_historical_ppc_reallocated_formatted),
+            os.getenv('CALCULATIONS_SPREADSHEET_ID'),
+            'Calc-Historical-PPC.Reallocated'
+        )
+        gservice.upload_data_to_sheet(
+            gservice.format_for_google_sheet_upload(calc_historical_organic_reallocated_formatted),
+            os.getenv('CALCULATIONS_SPREADSHEET_ID'),
+            'Calc-Historical-Organic'
+        )
+        gservice.upload_data_to_sheet(
+            gservice.format_for_google_sheet_upload(summarized_output_file),
+            os.getenv('CALCULATIONS_SPREADSHEET_ID'),
+            'Output File'
+        )
+    except:
+        print('Can\'t upload final data to google sheet')
+        traceback.print_exc()
 
 
 if __name__ == '__main__':

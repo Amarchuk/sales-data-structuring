@@ -42,7 +42,7 @@ def parse_orders(df):
 
     df.dropna(subset=['Price/Qty'], inplace=True)
 
-    df = df[df['Refunded'] == 0]
+    # df = df[df['Refunded'] == 0]
     df = df[df['Customer Pays'] >= 0.0]
 
     return df
@@ -71,7 +71,14 @@ def parse_historical_table(df):
 def read_sales_xlsx(filenames):
     df = pd.DataFrame(columns=['Year', 'Month', 'Day', 'Market Place', 'ASIN', 'PPC Orders'])
     for filename in filenames:
-        sales = pd.read_excel(filename, sheetname=None)
+        # sales = pd.read_excel(filename, sheetname=None)
+        sales = pd.read_excel(filename, sheetname='SALESPERDAYPERPRODUC-20200205-1')
+        # print(type(sales))
+        # for key in sales:
+        #     print(key)
+        #     print('PPC Orders' in sales[key].columns)
+        #     print(sales[key].head())
+        #     print('-'*50)
         sales.drop(sales.columns[0], axis=1, inplace=True)
 
         try:
@@ -81,8 +88,9 @@ def read_sales_xlsx(filenames):
         except KeyError:
             print("Could not parse the date column. It may be already be parsed.")
 
-        df = df.append(sales[['Year', 'Month', 'Day', 'Market Place', 'ASIN', 'PPC Orders']],
-                       ignore_index=True, sort=True)
+        # df = df.append(sales[['Year', 'Month', 'Day', 'Market Place', 'ASIN', 'PPC Orders']],
+        #                ignore_index=True, sort=True)
+        df = df.append(sales[['Year', 'Month', 'Day', 'Market Place', 'ASIN', 'PPC Orders']], ignore_index=True)
 
     df = df.sort_values(by=['Year', 'Month', 'Day', 'Market Place', 'ASIN', 'PPC Orders']).reset_index(drop=True)
     df = df.drop_duplicates(
