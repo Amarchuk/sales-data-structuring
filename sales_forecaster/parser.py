@@ -71,14 +71,16 @@ def parse_historical_table(df):
 def read_sales_xlsx(filenames):
     df = pd.DataFrame(columns=['Year', 'Month', 'Day', 'Market Place', 'ASIN', 'PPC Orders'])
     for filename in filenames:
-        # sales = pd.read_excel(filename, sheetname=None)
-        sales = pd.read_excel(filename, sheetname='SALESPERDAYPERPRODUC-20200205-1')
+        sales = pd.read_excel(filename, sheetname=None)
+        # sales = pd.read_excel(filename, sheetname='SALESPERDAYPERPRODUC-20200205-1')
+        sales = pd.read_excel(filename, sheetname='Sheet 1')
         # print(type(sales))
         # for key in sales:
         #     print(key)
         #     print('PPC Orders' in sales[key].columns)
         #     print(sales[key].head())
         #     print('-'*50)
+        # print(sales.keys())
         sales.drop(sales.columns[0], axis=1, inplace=True)
 
         try:
@@ -108,14 +110,17 @@ def read_out_of_stock_csv(filenames):
 
     for filename in filenames:
         stock_out = pd.read_csv(filename)
-        stock_out = stock_out[['Market Place', 'ASIN', 'Out of stock days']]
 
-        month = re.search(month_pattern, filename, re.IGNORECASE).group(0).capitalize()
-        year = re.search(year_pattern, filename, re.IGNORECASE).group(0)
+        try:
+            month = re.search(month_pattern, filename, re.IGNORECASE).group(0).capitalize()
+            year = re.search(year_pattern, filename, re.IGNORECASE).group(0)
+            stock_out['Year'] = int(year)
+            stock_out['Month'] = month
+        except AttributeError:
+            stock_out.loc[:, 'Year'] = pd.DatetimeIndex(stock_out['Expiry Date']).year.astype(int)
+            stock_out.loc[:, 'Month'] = pd.DatetimeIndex(stock_out['Expiry Date']).strftime('%B')
 
-        stock_out['Year'] = int(year)
-        stock_out['Month'] = month
-
+        stock_out = stock_out[['Market Place', 'ASIN', 'Out of stock days', 'Year', 'Month']]
         df = df.append(stock_out, ignore_index=True)
 
     df = df.sort_values(by=['ASIN', 'Out of stock days']).reset_index(drop=True)
