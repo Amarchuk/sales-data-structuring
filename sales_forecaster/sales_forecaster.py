@@ -18,6 +18,7 @@ def get_liquidation_orders(orders_df, liquidataion_limit_df):
     try:
         # TODO: is this line correct? I think so
         orders_df = orders_df[orders_df['Refunded'] == 0]
+        orders_df = orders_df[orders_df['Customer Pays'] >= 0.0]
 
         orders_with_liquidation_limit = pd.merge(orders_df, liquidataion_limit_df,
                                                  how='left',
@@ -293,7 +294,7 @@ def main(orders_regex, out_of_stock_regex, sales_regex, input_regex):
     orders = parser.read_orders_csv(order_files)
     orders = match_asin_cin7(orders, asin_cin7, 'orders')
     orders = orders[['Cin7', 'Year', 'Month', 'Day', 'Market Place', 'Sales Channel',
-                     'Qty', 'Price', 'Price/Qty', 'Refunded']]
+                     'Qty', 'Price', 'Price/Qty', 'Refunded', 'Customer Pays']]
     orders_amazon = orders[orders['Sales Channel'] != 'Non-Amazon']
     orders_non_amazon = orders[orders['Sales Channel'] == 'Non-Amazon']
 
@@ -387,7 +388,7 @@ def main(orders_regex, out_of_stock_regex, sales_regex, input_regex):
     calc_historical_total_sales_formatted = pd.concat(
         [calc_historical_amazon_formatted, calc_historical_non_amazon_formatted], ignore_index=True)
 
-    with pd.ExcelWriter('python-test-calculations.xlsx') as writer:
+    with pd.ExcelWriter('python-test-calculations-Mar27.xlsx') as writer:
         calc_historical_total_sales_formatted.to_excel(writer, sheet_name='Calc-Historical-Total')
         calc_historical_amazon_formatted.to_excel(writer, sheet_name='Calc-Historical-Amazon')
         calc_historical_liquidation_formatted.to_excel(writer, sheet_name='Calc-Historical-Liquidation')

@@ -43,7 +43,7 @@ def parse_orders(df):
     df.dropna(subset=['Price/Qty'], inplace=True)
 
     # df = df[df['Refunded'] == 0]
-    df = df[df['Customer Pays'] >= 0.0]
+    # df = df[df['Customer Pays'] >= 0.0]
 
     return df
 
